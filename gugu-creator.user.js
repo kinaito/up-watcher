@@ -46,6 +46,9 @@
                 refreshBtn.textContent = '刷新列表';
                 refreshBtn.disabled = false;
             }
+            if (typeof btState !== 'undefined' && btState.syncing) {
+                btState.syncing = false;
+            }
         }
     }
 
@@ -134,6 +137,14 @@
         document.head.appendChild(styleEl);
 
         initPanelJS();
+
+        // 面板创建后渲染已有数据（修复 ISSUE-012）
+        setTimeout(function() {
+            if (typeof btRenderList === 'function') btRenderList();
+            if (typeof btRenderGroups === 'function') btRenderGroups();
+            var tc = document.getElementById('bt-total-count');
+            if (tc && typeof btState !== 'undefined') tc.textContent = Object.keys(btState.ups).length;
+        }, 100);
     }
 
     function initPanelJS() {
@@ -188,7 +199,7 @@
             + 'var btPendingTimers=[];'
             + 'function btSetTimeout(fn,ms){var tid=setTimeout(fn,ms);btPendingTimers.push(tid);return tid}'
             + 'function btClearPendingTimers(){btPendingTimers.forEach(function(tid){clearTimeout(tid)});btPendingTimers=[]}'
-            + 'function btSave(){localStorage.setItem("gugu_state",JSON.stringify(btState))}'
+            + 'function btSave(){var d=Object.assign({},btState);delete d.syncing;try{localStorage.setItem("gugu_state",JSON.stringify(d))}catch(e){console.error("[追踪器] 本地存储失败，可能存储空间已满",e)}}'
             + 'function btLoad(){var s=localStorage.getItem("gugu_state");if(s){try{var d=JSON.parse(s);if(typeof d==="object"&&d!==null){for(var k in d)btState[k]=d[k]}else{console.error("[追踪器] 本地数据格式错误，已重置");btState={pullCount:1,ups:{},videos:[],groups:[],currentGroup:"all",lastSync:null,lastAutoSyncDate:null,syncing:false};btSave()}}catch(e){console.error("[追踪器] 本地数据解析失败，已重置",e);btState={pullCount:1,ups:{},videos:[],groups:[],currentGroup:"all",lastSync:null,lastAutoSyncDate:null,syncing:false};btSave()}}}'
             + 'function btPad(n){return n<10?"0"+n:String(n)}'
             + 'function btFmtTime(ts){var d=new Date(ts*1000);var now=new Date();var mm=btPad(d.getMonth()+1);var dd=btPad(d.getDate());var hh=btPad(d.getHours());var mi=btPad(d.getMinutes());if(d.getFullYear()===now.getFullYear()){return mm+"-"+dd+" "+hh+":"+mi}return d.getFullYear()+"-"+mm+"-"+dd+" "+hh+":"+mi}'
@@ -197,7 +208,7 @@
             + 'function btFmtRelativeTime(ts){if(!ts)return"";var d=new Date(ts*1000);if(isNaN(d.getTime()))return"";var now=new Date();var today=new Date(now.getFullYear(),now.getMonth(),now.getDate());var target=new Date(d.getFullYear(),d.getMonth(),d.getDate());var diffDays=Math.floor((today-target)/86400000);var hh=btPad(d.getHours());var mi=btPad(d.getMinutes());if(diffDays===0)return"今天 "+hh+":"+mi;if(diffDays===1)return"昨天 "+hh+":"+mi;if(diffDays<30)return diffDays+"天前";var diffMonths=Math.floor(diffDays/30);if(diffMonths<12)return diffMonths+"月前";return Math.floor(diffMonths/12)+"年前"}'
             + 'function btGetTodayStr(){var d=new Date();return d.getFullYear()+"-"+btPad(d.getMonth()+1)+"-"+btPad(d.getDate())}'
             + 'function btGetDaysAgo(ts){if(!ts)return 9999;var d=new Date(ts*1000);if(isNaN(d.getTime()))return 9999;var now=new Date();return Math.floor((now-d)/86400000)}'
-            + 'var ANCHOR_MATCH_KEYWORDS=[/主播/i,/虚拟主播/i,/vup/i,/虚拟up/i,/vtuber/i,/youtube/i,/个人势/i];'
+            + 'var ANCHOR_MATCH_KEYWORDS=[/主播/i,/虚拟主播|虛擬主播/i,/vup/i,/虚拟up|虛擬up/i,/vtuber/i,/youtube/i,/个人势|個人勢/i];'
             + 'function btIsAnchor(u){'
             + '  if(btState.groups&&btState.groups.length>0){'
             + '    var mid=String(u.mid);'
@@ -342,7 +353,7 @@
             + '      fetchGroupMids();'
             + '    }else{startVideoSync(ups,fullSync)}'
             + '  }).catch(function(e){'
-            + '    btState.syncing=false;'
+            + '    btClearPendingTimers();btState.syncing=false;'
             + '    if(btn){btn.textContent="同步最新数据";btn.disabled=false}'
             + '    alert("同步失败: "+e.message);'
             + '  });'
@@ -414,7 +425,7 @@
             + '    var count=0;var BATCH=5;var dynUps=syncUps.slice();'
             + '    function syncDynBatch(){'
             + '      if(count>=dynUps.length){'
-            + '        btState.lastSync=new Date().toLocaleString();btState.lastAutoSyncDate=btGetTodayStr();btState.syncing=false;btSave();btRenderList();btRenderGroups();'
+            + '        btClearPendingTimers();btState.lastSync=new Date().toLocaleString();btState.lastAutoSyncDate=btGetTodayStr();btState.syncing=false;btSave();btRenderList();btRenderGroups();'
             + '        var tc=document.getElementById("bt-total-count");if(tc)tc.textContent=Object.keys(btState.ups).length;'
             + '        if(btn){btn.textContent="同步最新数据";btn.disabled=false}'
             + '        console.log("[追踪器] 同步完成");return;'
@@ -482,7 +493,7 @@
             + '      var groupIdx=0;'
             + '      function fetchGroupMids(){'
             + '        if(groupIdx>=btState.groups.length){'
-            + '          btState.syncing=false;btSave();btRenderList();btRenderGroups();'
+            + '          btClearPendingTimers();btState.syncing=false;btSave();btRenderList();btRenderGroups();'
             + '          var tc=document.getElementById("bt-total-count");if(tc)tc.textContent=Object.keys(btState.ups).length;'
             + '          if(btn){btn.textContent="刷新列表";btn.disabled=false}'
             + '          return;'
@@ -495,12 +506,12 @@
             + '      }'
             + '      fetchGroupMids();'
             + '    }else{'
-            + '      btState.syncing=false;btSave();btRenderList();btRenderGroups();'
+            + '      btClearPendingTimers();btState.syncing=false;btSave();btRenderList();btRenderGroups();'
             + '      var tc=document.getElementById("bt-total-count");if(tc)tc.textContent=Object.keys(btState.ups).length;'
             + '      if(btn){btn.textContent="刷新列表";btn.disabled=false}'
             + '    }'
             + '  }).catch(function(e){'
-            + '    btState.syncing=false;'
+            + '    btClearPendingTimers();btState.syncing=false;'
             + '    if(btn){btn.textContent="刷新列表";btn.disabled=false}'
             + '    alert("刷新列表失败: "+e.message);'
             + '  });'
@@ -545,7 +556,6 @@
             + '  fetch("https://api.bilibili.com/x/relation/tags/addUsers",{method:"POST",credentials:"include",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:body}).then(function(r){return r.json()}).then(function(d){'
             + '    if(d.code!==0)throw new Error(d.message||"移动分组失败");'
             + '    if(btState.groups){'
-            + '      if(fromGroupId){var fromG=btState.groups.find(function(g){return String(g.id)===fromGroupId});if(fromG&&fromG.mids){var idx=fromG.mids.indexOf(String(mid));if(idx>=0)fromG.mids.splice(idx,1);fromG.count=fromG.mids.length}}'
             + '      var toG=btState.groups.find(function(g){return String(g.id)===toGroupId});if(toG&&toG.mids&&toG.mids.indexOf(String(mid))<0){toG.mids.push(String(mid));toG.count=toG.mids.length}'
             + '    }'
             + '    btSave();btRenderList();btRenderGroups();'
@@ -559,7 +569,7 @@
             + '  setTimeout(function(){toast.className="bt-toast bt-toast-show"},10);'
             + '  setTimeout(function(){toast.className="bt-toast";setTimeout(function(){if(toast.parentNode)document.body.removeChild(toast)},300)},2000);'
             + '}'
-            + 'btLoad();'
+            + 'btLoad();btState.syncing=false;'
             + 'btRenderList();'
             + 'btRenderGroups();'
             + 'var tc=document.getElementById("bt-total-count");if(tc)tc.textContent=Object.keys(btState.ups).length;'
