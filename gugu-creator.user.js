@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         咕咕创作者
-// @namespace    https://greasyfork.org/zh-CN/scripts/520178
+// @namespace    https://github.com/kinaito/up-watcher
 // @version      0.7.0
 // @description  一眼发现你关注的创作者最新作品，发掘值得看的内容
 // @author       V二同学
